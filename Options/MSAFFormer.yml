@@ -1,0 +1,134 @@
+
+# general settings
+name: Deraining_LEGformer
+model_type: ImageCleanModel
+scale: 1
+num_gpu: 1
+manual_seed: 100
+
+# dataset and data loader settings
+datasets:
+  train:
+    name: TrainSet
+    type: Dataset_PairedImage
+
+
+    dataroot_gt: ./Datasets/Haze1k_moderate/train/target
+    dataroot_lq: ./Datasets/Haze1k_moderate/train/input
+    filename_tmpl: '{}'
+    geometric_augs: true
+
+
+    io_backend:
+      type: disk
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 0
+    batch_size_per_gpu: 1
+
+    # ------- Single fixed-patch size 128x128 ---------
+    mini_batch_sizes: [1]
+    iters: [300000]
+    gt_size: 128
+    gt_sizes: [128]
+    # -------------------------------------------------
+
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  val:
+    name: ValSet
+    type: Dataset_PairedImage
+    dataroot_gt: ./Datasets/Haze1k_moderate/val/target
+    dataroot_lq: ./Datasets/Haze1k_moderate/val/input
+    io_backend:
+      type: disk
+
+# network structures
+network_g:
+  type: MSAFFormer
+  inp_channels: 3
+  out_channels: 3
+  dim: 48
+  num_blocks: [4, 6, 6, 8]
+  heads: [1, 2, 4, 8]
+  ffn_expansion_factor: 2.66
+  bias: False
+  LayerNorm_type: WithBias
+
+# path
+path:
+  pretrain_network_g: ~
+  strict_load_g: true
+  resume_state: ~
+
+# training settings
+train:
+  total_iter: 300000
+  warmup_iter: -1             # no warm up
+
+
+  use_grad_clip: true
+  grad_clip_max_norm: 1.0
+
+  # ===== Learning Rate Schedule （修正）======
+
+  scheduler:
+    type: CosineAnnealingRestartCyclicLR
+    periods: [92000, 208000]
+    restart_weights: [1, 1]
+    eta_mins: [0.0001, 0.000001]
+  mixing_augs:
+    mixup: false
+    mixup_beta: 1.2
+    use_identity: true
+
+
+  optim_g:
+    type: AdamW
+    lr: !!float 1e-4
+    weight_decay: !!float 1e-4
+    betas: [0.9, 0.99]
+    eps: !!float 1e-6
+
+  # losses
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1
+    reduction: mean
+
+# validation settings
+val:
+  window_size: 8
+  val_freq: !!float 1e3
+  save_img: false
+  rgb2bgr: true
+  use_image: true
+  max_minibatch: 1
+
+
+  tile: 128
+  tile_overlap: 32
+
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+
+
+# logging settings
+logger:
+  print_freq: 1000
+  save_checkpoint_freq: !!float 1e3
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+
+dist_params:
+  backend: gloo
+  port: 29500
