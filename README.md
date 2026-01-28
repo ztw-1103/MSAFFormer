@@ -26,7 +26,7 @@
 <tbody>
   <tr>
     <td>Baidu Cloud</td>
-    <td> <a href=" https://pan.baidu.com/s/1c2rW4hi">Download (5vss)</a> </td>
+    <td> <a href="https://pan.baidu.com/s/1owpaqVo38W4FcS_rVvKJIw">Download (2xph)</a> </td>
     <td> <a href="https://pan.baidu.com/s/1RbjG7gw8z3a8L0fRFoAavw">Download (frde)</a> </td>
     <td> <a href="https://pan.baidu.com/s/1ICUpWsPLrgag7zlgnCXZmA">Download (ckek)</a> </td>
   </tr>
