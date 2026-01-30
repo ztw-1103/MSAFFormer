@@ -105,29 +105,15 @@ class PixelAttention(nn.Module):
 
 
 class HAFM(nn.Module):
-    """
-    Haze-Aware Feature Modulator
-    输入/输出: [B, C, H, W]  -> [B, C, H, W]（残差连接）
-    组成:
-      - 轻量 transmission 估计: t_hat ∈ (0,1)
-      - 通道门控: GAP -> MLP -> sigmoid
-      - 空间门控: concat(avg,max, 1-t_hat) -> 7x7 conv -> sigmoid
-      - 高频增强: depthwise 3x3 高通 + 1x1 投影
-      - 残差: y = x + conv( (1+gate_c)*x + gate_s*highfreq )
-    """
     def __init__(self, channels, reduction=8):
         super().__init__()
         mid = max(4, channels // reduction)
-
-        # 1) 粗传输估计（仅用于特征调制）
         self.t_head = nn.Sequential(
             nn.Conv2d(channels, channels, 3, 1, 1, bias=False),
             nn.ReLU(inplace=True),
             nn.Conv2d(channels, 1, 3, 1, 1, bias=True),
             nn.Sigmoid()
         )
-
-        # 2) 通道门控 (CBAM风格, 但受 t_hat 影响)
         self.gap = nn.AdaptiveAvgPool2d(1)
         self.mlp = nn.Sequential(
             nn.Conv2d(channels, mid, 1, bias=True),
@@ -135,45 +121,27 @@ class HAFM(nn.Module):
             nn.Conv2d(mid, channels, 1, bias=True),
             nn.Sigmoid()
         )
-
-        # 3) 空间门控（将 1 - t_hat 作为附加通道）
         self.spatial = nn.Sequential(
             nn.Conv2d(3, 1, kernel_size=7, padding=3, bias=True),  # [avg, max, 1-t_hat]
             nn.Sigmoid()
         )
-
-        # 4) 轻量高通分支（可学习深度可分离 + 投影）
         self.dw_hpf = nn.Conv2d(channels, channels, 3, 1, 1, groups=channels, bias=False)
         with torch.no_grad():
-            # 初始化为拉普拉斯近似核 (0,-1,0;-1,4,-1;0,-1,0)
             k = torch.tensor([[0,-1,0],[-1,4,-1],[0,-1,0]], dtype=torch.float32)
             k = k.view(1,1,3,3).repeat(channels,1,1,1)
             self.dw_hpf.weight.copy_(k)
         self.proj = nn.Conv2d(channels, channels, 1, bias=True)
-
-        # 5) 输出融合卷积
         self.out_conv = nn.Conv2d(channels, channels, 3, 1, 1, bias=True)
-
-        # 6) Layerscale（可选）
         self.gamma = nn.Parameter(torch.ones(1) * 1.0)
 
     def forward(self, x):
-        # t_hat ∈ (0,1)，雾厚 ≈ 低 t
         t_hat = self.t_head(x)           # [B,1,H,W]
         inv_t = 1.0 - t_hat
-
-        # 通道门控
         gate_c = self.mlp(self.gap(x))   # [B,C,1,1]
-
-        # 空间门控：把 avg/max/1-t_hat 拼一起
         avg = torch.mean(x, dim=1, keepdim=True)
         mx, _ = torch.max(x, dim=1, keepdim=True)
         gate_s = self.spatial(torch.cat([avg, mx, inv_t], dim=1))  # [B,1,H,W]
-
-        # 高频增强分支
         hpf = self.proj(self.dw_hpf(x))
-
-        # 融合 & 残差
         y = (1.0 + gate_c) * x + gate_s * hpf
         y = self.out_conv(y)
 
@@ -364,7 +332,7 @@ class TransformerBlock(nn.Module):
         self.norm1 = LayerNorm(dim, LayerNorm_type)
         self.attn  = Attention(dim, num_heads)
         self.norm2 = LayerNorm(dim, LayerNorm_type)
-        self.norm_mlp = LayerNorm(dim, LayerNorm_type)  # ★ 卷积分支单独的LN
+        self.norm_mlp = LayerNorm(dim, LayerNorm_type)  
 
         # dim -> 2*dim，再DW-Conv；SimpleGate回到dim
         self.conv1x1 = nn.Conv2d(dim, 2*dim, kernel_size=1, stride=1, padding=0, bias=bias)
@@ -373,22 +341,16 @@ class TransformerBlock(nn.Module):
 
         self.ffn = FeedForward(dim, ffn_expansion_factor, bias)
 
-        # ★ LayerScale：小系数更稳（也可设为1.0）
         self.gamma_attn = nn.Parameter(torch.ones(1) * 1.0)
         self.gamma_mlp  = nn.Parameter(torch.ones(1) * 1.0)
 
     def forward(self, x):
-        # Self-Attention 残差
         x = x + self.gamma_attn * self.attn(self.norm1(x))
-
-        # 卷积分支残差（用独立LN）
         residual = x
         y = self.conv1x1(self.norm_mlp(x))
         y = self.conv3x3(y)
         y = self.sg(y)
         x = residual + y
-
-        # FFN 残差
         x = x + self.gamma_mlp * self.ffn(self.norm2(x))
         return x
 
