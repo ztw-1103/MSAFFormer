@@ -1,6 +1,6 @@
 
 # general settings
-name: Deraining_LEGformer
+name: Dehazining_MSAFFormer
 model_type: ImageCleanModel
 scale: 1
 num_gpu: 1
