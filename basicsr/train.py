@@ -292,17 +292,15 @@ def main():
                 rgb2bgr = opt['val'].get('rgb2bgr', True)
                 use_image = opt['val'].get('use_image', True)
 
-                # ===== 在进入验证前清理缓存/碎片（放这里最合适）=====
                 import gc
                 gc.collect()
                 torch.cuda.empty_cache()
 
-                # 可选：更稳（多数框架已有，但加上不亏）
-                model.net_g.eval()  # 如果报错，改成 model.model_g.eval() 或 model.eval()
+                model.net_g.eval()  
                 with torch.no_grad():
                     model.validation(val_loader, current_iter, tb_logger,
                                      opt['val']['save_img'], rgb2bgr, use_image)
-                model.net_g.train()  # 验证结束切回训练态
+                model.net_g.train() 
             data_time = time.time()
             iter_time = time.time()
             train_data = prefetcher.next()
