@@ -301,7 +301,7 @@ class AEstimator(nn.Module):
 ##########################################################################
 ## Multi-DConv Head Transposed Self-Attention (MDTA)
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads):  # ← 移除 bias 形参
+    def __init__(self, dim, num_heads):  
         super(Attention, self).__init__()
         self.num_heads = num_heads
         self.temperature = nn.Parameter(torch.ones(num_heads, 1, 1))
@@ -334,7 +334,6 @@ class TransformerBlock(nn.Module):
         self.norm2 = LayerNorm(dim, LayerNorm_type)
         self.norm_mlp = LayerNorm(dim, LayerNorm_type)  
 
-        # dim -> 2*dim，再DW-Conv；SimpleGate回到dim
         self.conv1x1 = nn.Conv2d(dim, 2*dim, kernel_size=1, stride=1, padding=0, bias=bias)
         self.conv3x3 = nn.Conv2d(2*dim, 2*dim, kernel_size=3, stride=1, padding=1, groups=2*dim, bias=bias)
         self.sg = SimpleGate()
