@@ -1,6 +1,6 @@
 
 # general settings
-name: Dehazining_MSAFFormer
+name: Dehazing_MSAFFormer
 model_type: ImageCleanModel
 scale: 1
 num_gpu: 1
